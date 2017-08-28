@@ -967,6 +967,9 @@ MyApplet.prototype = {
         this._windows = [];
         this._monitorWatchList = [];
 
+	this._windowsBackup = [];
+	this._backupTimestamp = 0;
+
         this.settings = new Settings.AppletSettings(this, "window-list@cinnamon.org", this.instance_id);
 
         this.settings.bind("enable-alerts", "enableAlerts", this._updateAttentionGrabber);
@@ -1225,12 +1228,21 @@ MyApplet.prototype = {
         // Now track the windows in our favorite monitors
         let windows = global.display.list_windows(0);
 
-        for (let window of windows) {
-            if (this._shouldAdd(window))
-                this._addWindow(window, false);
-            else
-                this._removeWindow(window);
-        }
+	for (let window of this._windowsBackup)
+	    if (windows.indexOf(window) != -1) {
+		if (this._shouldAdd(window))
+                    this._addWindow(window, false);
+		else
+                    this._removeWindow(window);
+	    }
+
+        for (let window of windows)
+	    if (this._windowsBackup.indexOf(window) == -1) {
+		if (this._shouldAdd(window))
+                    this._addWindow(window, false);
+		else
+                    this._removeWindow(window);
+	    }
     },
 
     _addWindow: function(metaWindow, alert) {
@@ -1261,6 +1273,15 @@ MyApplet.prototype = {
         // Do an inverse loop because we might remove some elements
         while (i--) {
             if (this._windows[i].metaWindow == metaWindow) {
+
+		// Save the meta windows list in the order they appear on screen
+		// unless if it has already been saved in the last 2 seconds
+		let now = (new Date()).getTime();
+		if (now > (this._backupTimestamp + 2000)) {
+		    this._backupTimestamp = now;
+		    this._windowsBackup = this.manager_container.get_children().map(function(item) { return item._delegate.metaWindow; });
+		}
+
                 this._windows[i].destroy();
                 this._windows.splice(i, 1);
             }
